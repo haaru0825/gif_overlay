@@ -5,8 +5,9 @@
 - 편집 모드에서 마우스로 드래그해 위치를, 휠로 크기를 바꿀 수 있다.
 - 위치/크기/투명도는 자동 저장되어 다음 실행 때 그대로 복원된다.
 
-설치:  pip install PySide6
+설치:  필요 없음 (PySide6가 없으면 실행 시 자동 설치됨)
 실행:  python gif_overlay.py a.gif b.gif     (인자 없으면 저장된 설정을 불러옴)
+exe:   build_exe.bat 더블클릭 -> dist/GifOverlay.exe 생성
        pythonw gif_overlay.py                (콘솔창 없이 실행)
 
 조작: 시스템 트레이(작업표시줄 오른쪽 아래) 아이콘 우클릭
@@ -15,8 +16,52 @@
 """
 import json
 import signal
+import subprocess
 import sys
 from pathlib import Path
+
+REQUIRED_PACKAGES = {"PySide6": "PySide6"}  # {import 이름: pip 패키지 이름}
+
+
+def _notify(title, text):
+    """콘솔창이 없어도(pythonw) 보이도록 Windows에선 메시지 박스를 쓴다."""
+    print(f"[{title}] {text}")
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, text, title, 0x40)
+        except Exception:
+            pass
+
+
+def ensure_packages():
+    """필요한 패키지가 없으면 pip로 자동 설치한다. (exe로 빌드된 경우엔 이미 포함되어 건너뜀)"""
+    if getattr(sys, "frozen", False):
+        return
+    import importlib.util
+
+    missing = [pip for mod, pip in REQUIRED_PACKAGES.items()
+               if importlib.util.find_spec(mod) is None]
+    if not missing:
+        return
+
+    _notify("GIF 오버레이", "필요한 패키지를 설치합니다: " + ", ".join(missing)
+            + "\n(처음 한 번만, 1~2분 걸릴 수 있어요. 확인을 누르고 잠시 기다려 주세요.)")
+    # pip 자체가 없는 환경 대비
+    subprocess.run([sys.executable, "-m", "ensurepip", "--upgrade"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    base = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check"]
+    # 일반 설치 -> 권한 문제면 --user로 재시도
+    ok = (subprocess.run(base + missing).returncode == 0
+          or subprocess.run(base + ["--user"] + missing).returncode == 0)
+    if not ok:
+        _notify("GIF 오버레이", "패키지 설치에 실패했어요.\n인터넷 연결을 확인하거나 직접 설치해 주세요:\n"
+                f"pip install {' '.join(missing)}")
+        sys.exit(1)
+    importlib.invalidate_caches()
+
+
+ensure_packages()
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QMovie, QPainter, QPen
