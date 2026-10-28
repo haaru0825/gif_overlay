@@ -1,0 +1,57 @@
+name: build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: ubuntu-22.04   # 오래된 glibc로 빌드해야 더 많은 배포판에서 돌아감
+            name: linux
+          - os: macos-latest
+            name: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Linux Qt system libraries
+        if: matrix.name == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libxcb-cursor0 libxkbcommon-x11-0 libegl1 libgl1
+
+      - name: Build
+        run: python build.py
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir out
+          case "${{ matrix.name }}" in
+            windows) cp dist/GifOverlay.exe out/GifOverlay-windows.exe ;;
+            linux)   tar -C dist -czf out/GifOverlay-linux-x86_64.tar.gz GifOverlay ;;
+            macos)   (cd dist && zip -r ../out/GifOverlay-macos.zip GifOverlay.app) ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GifOverlay-${{ matrix.name }}
+          path: out/*
+
+      - name: Attach to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
