@@ -1,46 +1,57 @@
-"""크로스 플랫폼 빌드 스크립트: Windows(exe) / Linux(바이너리) / macOS(.app)
+name: build
 
-사용법:  python build.py
-결과물:  dist/ 폴더 (Windows: GifOverlay.exe, Linux: GifOverlay, macOS: GifOverlay.app)
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
 
-같은 폴더에 icon.ico가 있으면 exe 아이콘(Windows)과 트레이 아이콘(전 플랫폼)으로 사용한다.
-"""
-import os
-import subprocess
-import sys
-from pathlib import Path
+permissions:
+  contents: write
 
-HERE = Path(__file__).resolve().parent
-os.chdir(HERE)
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: ubuntu-22.04   # 오래된 glibc로 빌드해야 더 많은 배포판에서 돌아감
+            name: linux
+          - os: macos-latest
+            name: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-def run(cmd):
-    print(">", " ".join(map(str, cmd)))
-    subprocess.check_call(cmd)
+      - name: Linux Qt system libraries
+        if: matrix.name == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libxcb-cursor0 libxkbcommon-x11-0 libegl1 libgl1
 
+      - name: Build
+        run: python build.py
 
-def main():
-    run([sys.executable, "-m", "pip", "install", "--upgrade", "pyinstaller", "-r", "requirements.txt"])
+      - name: Package
+        shell: bash
+        run: |
+          mkdir out
+          case "${{ matrix.name }}" in
+            windows) cp dist/GifOverlay.exe out/GifOverlay-windows.exe ;;
+            linux)   tar -C dist -czf out/GifOverlay-linux-x86_64.tar.gz GifOverlay ;;
+            macos)   (cd dist && zip -r ../out/GifOverlay-macos.zip GifOverlay.app) ;;
+          esac
 
-    cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
-           "--windowed", "--name", "GifOverlay"]
-    # macOS는 onefile+windowed 조합이 deprecated라 .app(onedir)로 만든다
-    if sys.platform != "darwin":
-        cmd.append("--onefile")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GifOverlay-${{ matrix.name }}
+          path: out/*
 
-    icon = HERE / "icon.ico"
-    if icon.exists():
-        print("Using icon.ico")
-        cmd += ["--add-data", f"{icon}{os.pathsep}."]  # 트레이 아이콘용으로 번들
-        if sys.platform == "win32":
-            cmd += ["--icon", str(icon)]               # exe 파일 아이콘
-    else:
-        print("No icon.ico found - building with default icon")
-
-    cmd.append("gif_overlay.py")
-    run(cmd)
-    print("\nDone! Output is in the dist/ folder.")
-
-
-if __name__ == "__main__":
-    main()
+      - name: Attach to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
