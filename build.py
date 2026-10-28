@@ -10,6 +10,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# 콘솔 인코딩이 한글을 못 쓰는 환경(예: Windows cp1252)에서도 print가 죽지 않게 한다
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="replace")
+
 HERE = Path(__file__).resolve().parent
 os.chdir(HERE)
 
@@ -30,16 +35,16 @@ def main():
 
     icon = HERE / "icon.ico"
     if icon.exists():
-        print("icon.ico 사용")
+        print("Using icon.ico")
         cmd += ["--add-data", f"{icon}{os.pathsep}."]  # 트레이 아이콘용으로 번들
         if sys.platform == "win32":
             cmd += ["--icon", str(icon)]               # exe 파일 아이콘
     else:
-        print("no icon.ico")
+        print("No icon.ico found - building with default icon")
 
     cmd.append("gif_overlay.py")
     run(cmd)
-    print("\ndone! check dist/ folder.")
+    print("\nDone! Output is in the dist/ folder.")
 
 
 if __name__ == "__main__":
