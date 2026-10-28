@@ -1,7 +1,6 @@
-# gif_shower
-idk what i say
+# gif_overlay
 made by 100% cluade
-
 
 # works only on windows
 look system tray
+
