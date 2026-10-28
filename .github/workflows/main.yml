@@ -16,7 +16,7 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-          - os: ubuntu-22.04   # 오래된 glibc로 빌드해야 더 많은 배포판에서 돌아감
+          - os: ubuntu-22.04
             name: linux
           - os: macos-latest
             name: macos
