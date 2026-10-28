@@ -35,11 +35,11 @@ def main():
         if sys.platform == "win32":
             cmd += ["--icon", str(icon)]               # exe 파일 아이콘
     else:
-        print("icon.ico 없음 - 기본 아이콘으로 빌드")
+        print("no icon.ico")
 
     cmd.append("gif_overlay.py")
     run(cmd)
-    print("\n완료! 결과물은 dist/ 폴더에 있어요.")
+    print("\ndone! check dist/ folder.")
 
 
 if __name__ == "__main__":
